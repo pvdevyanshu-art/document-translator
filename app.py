@@ -114,10 +114,9 @@ def translate_document():
     file = request.files['file']
     target_lang = request.form.get('target_lang')
 
-    # Get the combined language value (e.g., "es|spa") and split it
     source_lang_full = request.form.get('source_lang', 'auto|eng').split('|')
-    source_lang = source_lang_full[0]      # For Gemini (e.g., 'es' or 'auto')
-    ocr_lang_code = source_lang_full[1]  # For Tesseract (e.g., 'spa' or 'eng')
+    source_lang = source_lang_full[0]
+    ocr_lang_code = source_lang_full[1]
 
     if file.filename == '':
         flash('No selected file')
@@ -126,19 +125,25 @@ def translate_document():
     if file:
         filename = file.filename
         original_text = ""
+
+        # --- THIS IS THE FIX ---
+        # Read the file stream into a BytesIO object that all libraries can handle.
+        file_stream_wrapper = io.BytesIO(file.stream.read())
         
         try:
             filename_lower = filename.lower()
     
+            # Now, use the new file_stream_wrapper for all extractions
             if filename_lower.endswith('.pdf'):
-                original_text = extract_text_from_pdf(file.stream)
+                original_text = extract_text_from_pdf(file_stream_wrapper)
             elif filename_lower.endswith('.docx'):
-                original_text = extract_text_from_docx(file.stream)
+                original_text = extract_text_from_docx(file_stream_wrapper)
             elif filename_lower.endswith('.txt'):
-                original_text = file.stream.read().decode('utf-8')
+                # For .txt, we need to reset the stream and decode
+                file_stream_wrapper.seek(0)
+                original_text = file_stream_wrapper.read().decode('utf-8')
             elif filename_lower.endswith(('.png', '.jpg', '.jpeg')):
-                # Pass the OCR language code to the extraction function
-                original_text = extract_text_from_image(file.stream, ocr_lang_code)
+                original_text = extract_text_from_image(file_stream_wrapper, ocr_lang_code)
             else:
                 flash('Unsupported file type. Please upload a .pdf, .docx, .txt, or image file.')
                 return redirect(url_for('index'))
@@ -169,6 +174,3 @@ def translate_document():
         )
 
     return redirect(url_for('index'))
-
-if __name__ == '__main__':
-    app.run(debug=True)
