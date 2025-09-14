@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 import PyPDF2
 import docx
 from fpdf import FPDF
+from PIL import Image
+import pytesseract
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # Load environment variables from .env file
 load_dotenv()
@@ -15,19 +18,11 @@ try:
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 except Exception as e:
     print(f"Error configuring Gemini API: {e}")
-    # Exit or handle the absence of API key appropriately
     exit()
 
 
 app = Flask(__name__)
-app.secret_key = 'your_super_secret_key' # Needed for flashing messages
-
-# Supported languages dictionary
-LANGUAGES = {
-    'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German', 'it': 'Italian',
-    'pt': 'Portuguese', 'nl': 'Dutch', 'ru': 'Russian', 'ja': 'Japanese', 'ko': 'Korean',
-    'zh': 'Chinese (Simplified)', 'ar': 'Arabic', 'hi': 'Hindi'
-}
+app.secret_key = 'your_super_secret_key'
 
 # --- Helper Functions ---
 
@@ -47,8 +42,19 @@ def extract_text_from_docx(file_stream):
         text += para.text + "\n"
     return text
 
+def extract_text_from_image(file_stream, lang_code):
+    """Extracts text from an image using the specified language code."""
+    try:
+        image = Image.open(file_stream)
+        # Use the lang_code variable to tell Tesseract which language to use
+        text = pytesseract.image_to_string(image, lang=lang_code)
+        return text
+    except Exception as e:
+        print(f"AN ERROR OCCURRED DURING OCR: {e}")
+        return ""
+
 def chunk_text(text, chunk_size=4000):
-    """Splits text into smaller chunks based on paragraphs."""
+    """Splits text into smaller chunks."""
     paragraphs = text.split('\n')
     chunks = []
     current_chunk = ""
@@ -66,11 +72,8 @@ def translate_text(text_to_translate, target_lang, source_lang="auto"):
     """Translates a text chunk using the Gemini API."""
     model = genai.GenerativeModel('gemini-1.5-flash')
     
-    source_language = LANGUAGES.get(source_lang, "auto-detect")
-    target_language = LANGUAGES.get(target_lang, "English")
-
-    prompt = (f"Translate the following text from {source_language} to {target_language}. "
-              "Provide ONLY the translated text, without any additional explanations, context, or conversational text. "
+    prompt = (f"Translate the following text to {target_lang}. "
+              "Provide ONLY the translated text, without any additional explanations or context. "
               "Preserve paragraph breaks.\n\n"
               f"Text to translate:\n---\n{text_to_translate}\n---")
 
@@ -81,23 +84,16 @@ def translate_text(text_to_translate, target_lang, source_lang="auto"):
         print(f"An error occurred during translation: {e}")
         return f"[[Error during translation: {e}]]"
 
-
 def create_translated_pdf(text):
-    """Creates a PDF document from the translated text using a Unicode font."""
+    """Creates a PDF document from the translated text."""
     pdf = FPDF()
     pdf.add_page()
-    
-    # Add the Unicode font. The 'uni=True' part is crucial.
     pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
     pdf.set_font('DejaVu', '', 12)
-    
-    # Write the text to the PDF
     pdf.multi_cell(0, 10, text)
-    
-    # Save the PDF to a byte stream
     pdf_buffer = io.BytesIO()
-    # Use 'latin-1' encoding as a container, which is standard for FPDF's internal handling
-    pdf_content = pdf.output(dest='S').encode('latin-1')
+    # Updated line to work with newer fpdf2 versions
+    pdf_content = pdf.output(dest='S')
     pdf_buffer.write(pdf_content)
     pdf_buffer.seek(0)
     return pdf_buffer
@@ -107,7 +103,7 @@ def create_translated_pdf(text):
 @app.route('/', methods=['GET'])
 def index():
     """Renders the main page."""
-    return render_template('index.html', languages=LANGUAGES)
+    return render_template('index.html')
 
 @app.route('/translate', methods=['POST'])
 def translate_document():
@@ -117,8 +113,12 @@ def translate_document():
         return redirect(url_for('index'))
     
     file = request.files['file']
-    source_lang = request.form.get('source_lang')
     target_lang = request.form.get('target_lang')
+
+    # Get the combined language value (e.g., "es|spa") and split it
+    source_lang_full = request.form.get('source_lang', 'auto|eng').split('|')
+    source_lang = source_lang_full[0]      # For Gemini (e.g., 'es' or 'auto')
+    ocr_lang_code = source_lang_full[1]  # For Tesseract (e.g., 'spa' or 'eng')
 
     if file.filename == '':
         flash('No selected file')
@@ -129,13 +129,21 @@ def translate_document():
         original_text = ""
         
         try:
-            if filename.endswith('.pdf'):
+            filename_lower = filename.lower()
+    
+            if filename_lower.endswith('.pdf'):
                 original_text = extract_text_from_pdf(file.stream)
-            elif filename.endswith('.docx'):
+            elif filename_lower.endswith('.docx'):
                 original_text = extract_text_from_docx(file.stream)
+            elif filename_lower.endswith('.txt'):
+                original_text = file.stream.read().decode('utf-8')
+            elif filename_lower.endswith(('.png', '.jpg', '.jpeg')):
+                # Pass the OCR language code to the extraction function
+                original_text = extract_text_from_image(file.stream, ocr_lang_code)
             else:
-                flash('Unsupported file type. Please upload a .pdf or .docx file.')
+                flash('Unsupported file type. Please upload a .pdf, .docx, .txt, or image file.')
                 return redirect(url_for('index'))
+
         except Exception as e:
             flash(f"Error reading file: {e}")
             return redirect(url_for('index'))
@@ -144,7 +152,6 @@ def translate_document():
             flash("Could not extract any text from the document.")
             return redirect(url_for('index'))
             
-        # Chunk and translate the text
         text_chunks = chunk_text(original_text)
         translated_text = ""
         for i, chunk in enumerate(text_chunks):
@@ -153,7 +160,6 @@ def translate_document():
         
         print("Translation complete. Generating PDF...")
         
-        # Create the translated PDF and send it for download
         pdf_buffer = create_translated_pdf(translated_text)
         
         return send_file(
@@ -164,7 +170,6 @@ def translate_document():
         )
 
     return redirect(url_for('index'))
-
 
 if __name__ == '__main__':
     app.run(debug=True)

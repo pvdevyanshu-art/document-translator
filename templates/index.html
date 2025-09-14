@@ -21,7 +21,7 @@
     <div class="container mx-auto max-w-2xl p-8 bg-white rounded-xl shadow-lg">
         <div class="text-center mb-8">
             <h1 class="text-4xl font-bold text-gray-800">Document Translator</h1>
-            <p class="text-gray-500 mt-2">Upload a PDF or DOCX file to translate it.</p>
+            <p class="text-gray-500 mt-2">Upload a PDF, DOCX, TXT, or Image file to translate it.</p>
         </div>
 
         {% with messages = get_flashed_messages() %}
@@ -36,27 +36,31 @@
         <form action="/translate" method="post" enctype="multipart/form-data" id="translate-form">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                    <label for="source-lang" class="block text-sm font-medium text-gray-700 mb-1">From</label>
-                    <select id="source-lang" name="source_lang" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="auto">Auto Detect</option>
-                        {% for code, name in languages.items() %}
-                            <option value="{{ code }}">{{ name }}</option>
-                        {% endfor %}
+                    <label for="source_lang" class="block text-sm font-medium text-gray-700 mb-1">From (Image Language)</label>
+                    <select id="source_lang" name="source_lang" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="auto|eng">Auto Detect (for Text/PDF/DOCX)</option>
+                        <option value="en|eng">English</option>
+                        <option value="es|spa">Spanish</option>
+                        <option value="de|deu">German</option>
+                        <option value="ja|jpn">Japanese</option>
                     </select>
                 </div>
                 <div>
-                    <label for="target-lang" class="block text-sm font-medium text-gray-700 mb-1">To</label>
-                    <select id="target-lang" name="target_lang" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        {% for code, name in languages.items() %}
-                            <option value="{{ code }}" {% if code == 'en' %}selected{% endif %}>{{ name }}</option>
-                        {% endfor %}
+                    <label for="target_lang" class="block text-sm font-medium text-gray-700 mb-1">To</label>
+                    <select id="target_lang" name="target_lang" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="English">English</option>
+                        <option value="Spanish">Spanish</option>
+                        <option value="French">French</option>
+                        <option value="German">German</option>
+                        <option value="Italian">Italian</option>
+                        <option value="Japanese">Japanese</option>
                     </select>
                 </div>
             </div>
 
             <div class="mb-6">
                 <label for="file" class="block text-sm font-medium text-gray-700 mb-1">Document File</label>
-                <input type="file" name="file" id="file" required accept=".pdf,.docx" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                <input type="file" name="file" id="file" required accept=".pdf,.docx,.txt,.png,.jpg,.jpeg" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
             </div>
 
             <div class="text-center">
@@ -78,3 +82,4 @@
 
 </body>
 </html>
+
