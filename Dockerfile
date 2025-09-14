@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Step 3: Install the Tesseract OCR engine
 # This is the part that solves the "Read-only" error
-RUN apt-get update && apt-get install -y tesseract-ocr
+RUN apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-spa tesseract-ocr-jpn tesseract-ocr-deu
 
 # Step 4: Copy the requirements file and install Python packages
 COPY requirements.txt .
