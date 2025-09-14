@@ -8,7 +8,7 @@ import docx
 from fpdf import FPDF
 from PIL import Image
 import pytesseract
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -46,13 +46,12 @@ def extract_text_from_image(file_stream, lang_code):
     """Extracts text from an image using the specified language code."""
     try:
         image = Image.open(file_stream)
-        # Use the lang_code variable to tell Tesseract which language to use
         text = pytesseract.image_to_string(image, lang=lang_code)
         return text
     except Exception as e:
         print(f"AN ERROR OCCURRED DURING OCR: {e}")
         return ""
-
+    
 def chunk_text(text, chunk_size=4000):
     """Splits text into smaller chunks."""
     paragraphs = text.split('\n')
